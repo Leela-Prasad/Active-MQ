@@ -3,7 +3,7 @@ package com.springboot.activemq;
 import org.springframework.jms.annotation.JmsListener;
 import org.springframework.stereotype.Component;
 
-@Component
+//@Component
 public class MessageListener {
 
 	@JmsListener(destination="sampleQueue")
