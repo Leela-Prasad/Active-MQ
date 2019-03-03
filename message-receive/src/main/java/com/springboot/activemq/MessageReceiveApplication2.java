@@ -20,10 +20,10 @@ import org.springframework.jms.support.destination.DestinationResolver;
 import org.springframework.jms.support.destination.DynamicDestinationResolver;
 
 @SpringBootApplication
-public class MessageReceiveApplication {
+public class MessageReceiveApplication2 {
 
 	public static void main(String[] args) throws JMSException {
-		ApplicationContext context = SpringApplication.run(MessageReceiveApplication.class, args);
+		ApplicationContext context = SpringApplication.run(MessageReceiveApplication2.class, args);
 		
 		JmsTemplate jmsTemplate = context.getBean(JmsTemplate.class);
 		jmsTemplate.setConnectionFactory(new ActiveMQConnectionFactory());
@@ -32,7 +32,7 @@ public class MessageReceiveApplication {
 		Connection connection = null;
 		try {
 			connection = jmsTemplate.getConnectionFactory().createConnection();
-			connection.setClientID("Listener1");
+			connection.setClientID("Listener2");
 			Session session = connection.createSession(false, TopicSession.AUTO_ACKNOWLEDGE);
 			Destination destination = destinationResolver.resolveDestinationName(session, "sampleTopic", true);
 			
