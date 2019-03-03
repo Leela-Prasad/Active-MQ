@@ -1,5 +1,8 @@
 package com.springboot.activemq;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import javax.jms.Connection;
 import javax.jms.Destination;
 import javax.jms.JMSException;
@@ -24,23 +27,31 @@ public class MessageReceiveApplication {
 		JmsTemplate jmsTemplate = context.getBean(JmsTemplate.class);
 		
 		DestinationResolver destinationResolver = new DynamicDestinationResolver();
-		Connection connection = jmsTemplate.getConnectionFactory().createConnection();
-		Session session = connection.createSession(false, Session.CLIENT_ACKNOWLEDGE);
-		Destination destination = destinationResolver.resolveDestinationName(session, "sampleQueue", false);
-		
-		MessageConsumer consumer = session.createConsumer(destination);
-		
-		connection.start();
-		
-		TextMessage message = (TextMessage)consumer.receive(1000);
-		if(message!=null) {
-			System.out.println(message.getText());
-			//If below line message.acknowledge is not present then only message will read
-			//but it will NOT be deleted from queue since we set acknowledge as CLIENT_ACKNOWLEDGE
-			//and the acknowledge is manual in this mode. 
-			message.acknowledge();
-		}else {
-			System.out.println("No Message");
+		Connection connection = null;
+		try {
+			connection = jmsTemplate.getConnectionFactory().createConnection();
+			Session session = connection.createSession(true, Session.SESSION_TRANSACTED);
+			Destination destination = destinationResolver.resolveDestinationName(session, "sampleQueue", false);
+			
+			MessageConsumer consumer = session.createConsumer(destination);
+			
+			connection.start();
+			
+			List<TextMessage> messages = new ArrayList<>();
+			while(messages.size()<15) {
+				TextMessage message = (TextMessage)consumer.receive(1000);
+				if(message!=null)
+					messages.add(message);
+			}
+			
+			for(TextMessage message : messages) {
+				System.out.println(message.getText());
+			}
+			
+			session.commit();
+		}finally {
+			if(connection!=null)
+				connection.close();
 		}
 	}
 
