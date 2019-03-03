@@ -1,15 +1,12 @@
 package com.springboot.activemq;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Scanner;
 
 import javax.jms.Connection;
 import javax.jms.Destination;
 import javax.jms.JMSException;
-import javax.jms.Message;
 import javax.jms.MessageConsumer;
 import javax.jms.Session;
-import javax.jms.TextMessage;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -30,29 +27,28 @@ public class MessageReceiveApplication {
 		Connection connection = null;
 		try {
 			connection = jmsTemplate.getConnectionFactory().createConnection();
-			Session session = connection.createSession(true, Session.SESSION_TRANSACTED);
-			Destination destination = destinationResolver.resolveDestinationName(session, "sampleQueue", false);
+			Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+			Destination destination = destinationResolver.resolveDestinationName(session, "sampleTopic", true);
 			
 			MessageConsumer consumer = session.createConsumer(destination);
+			consumer.setMessageListener(new TextMessageListener());
 			
 			connection.start();
 			
-			List<TextMessage> messages = new ArrayList<>();
-			while(messages.size()<15) {
-				TextMessage message = (TextMessage)consumer.receive(1000);
-				if(message!=null)
-					messages.add(message);
+			boolean finished = false;
+			while (!finished) {
+				finished = lookForUserPressingX();
 			}
 			
-			for(TextMessage message : messages) {
-				System.out.println(message.getText());
-			}
-			
-			session.commit();
 		}finally {
 			if(connection!=null)
 				connection.close();
 		}
+	}
+	
+	private static boolean lookForUserPressingX() {
+		Scanner scanner = new Scanner(System.in);
+		return scanner.nextLine().toLowerCase().equals("x");
 	}
 
 }
