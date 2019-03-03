@@ -1,0 +1,147 @@
+Message Types:
+1. TextMessage 
+2. MapMessage - we can send key value pairs in this type of message
+3. ObjectMessage - using this we can send an entire object as long as object is serializable.
+4. BytesMessage
+5. StreamMessage
+
+
+JMS API Receive Method has 3 variants.
+receive(); 
+receive(long waitPeriodInMilliSeconds)
+receiveNoWait();
+
+receive() 
+if a message is available in queue then it will take it
+else it will wait infinte period to receive a message.
+So this will cause blocking issue
+
+receive(long waitPeriodInMilliSeconds)
+if a message is available in queue then it will take it
+else it will wait specified period to receive a message.
+This will prevent blocking issue
+
+receiveNoWait();
+if a message is available in queue then it will take it
+else it will exit
+But even though if message is available we can’t guarantee that it will be consumed as this method is not reliable.
+This means it will receive only IMMEDIATELY AVAILABLE messages 
+meaning if the broker is slow to give a message avialable in the queue then this method will exit, so in this case it is better to  receive(long waitPeriodInMilliSeconds).
+
+
+Send:
+While sending message we have 3 options that can be explicitly set 
+1. deliveryMode -> default is persistent.
+2. priority -> default is 4.
+3. timeToLive -> default is No expiry i.e., 0.
+
+
+If Delivery Mode is set to Non Persistent then messages will not survive when broker restarts, 
+but there is no guarantee for this, what really happens in Broker is Active MQ will store the messages but it may not store the message when the queue is busy and performance is costlier or it will not do so many IO operations for Non persistent queues.
+
+High Priority messages will be sent first and then low ones next
+But What Active MQ guarantees is it will send messages first whose priority > 4 and messages later with priority < 4
+But there is no guarantee that message with priority 9 will be delivered first compared to message with priority 6.
+it can deliver message(6) first and then message(9)
+
+timeToLive - it will expire messages in the queue after a certain period of time(ms)
+But Active MQ doesn’t guarantee that it will happen.
+
+** priority is not working in Active MQ
+
+JMS does not require that a provider strictly implement priority ordering of messages; however, it should do its best to deliver expedited messages ahead of normal messages.
+
+ActiveMQ does not YET implement priority queues, they say it will somewhere in 6.x version.
+
+
+Publish Subscribe Mechanism:
+In this model multiple receivers/subscribers are subscribed to the same destination(i.e., topic) where as in queue we have one subscriber.
+
+*** If a new subscriber is added then he will get messages from the point of subscription.
+i.e., in case of crashes if any subscriber is down then he will not get any messages that was sent to topic.
+When he again come backs online then he will get messages from that point only and he will not get messages that arrived during the down time.
+
+
+To avoid we need make the Topic Durable
+for this we need write Listener in a such a way that Topic know to register Listener in a Durable way.
+
+
+
+Transaction and Batching:
+until now we are sending only one message at a time 
+
+Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGED);
+
+It is possible to send multiple messages as a batch to the receiver, for this we need to create a session with boolean as true, which states that this session is in a transaction.
+
+Session session = connection.createSession(true, Session.AUTO_ACKNOWLEDGED);
+
+but this setting alone will not send messages to the queue as a batch means with this settings no messages will be sent to the queue.
+To make this work we need to commit the transaction telling JMS that our batch is ready to be sent.
+
+MessageProducer messageProducer = session.createProducer(queue);
+for(int i=0;i<20;++i) {
+ TextMessage message = session.createTextMessage(“Message!!!”);
+ messageProducer.send(message,DeliveryMode.PERSISTENT, priority, 0);
+}
+
+try {
+ session.commit();     //This line will JMS that batch is ready to sent.
+}catch(Exception e) {
+ session.rollback();   //messages must be put in queue when something happens wrong. 
+ System.out.println(“Something went wrong”);
+ System.out.println(e);
+}
+
+From Sender Point of View there is NO EFFECT ON ACKNOWLEDGE MODES. we have to pass this value because of JMS Specification and the default value is AUTO_ACKNOWLEDGED
+
+
+Acknowledge Modes:
+1. AUTO_ACKNOWLEDGED
+2. CLIENT_ACKNOWLEDGE
+3. DUPS_OK_ACKNOWLEDGE
+4. SESSION_TRANSACTED
+
+AUTO ACKNOWLEDGED is default and the message on the queue will be deleted when consumer receives a message and it doesn’t whether that message is processed successfully or not.
+
+*** i.e., If a message is received without any errors then it will be automatically deleted from the queue. else it will do a redelivery as per the policies
+but if we want to deleted based on some dependent system result then Auto Acknowledgement is not the right choice we need to use client acknowledgement.
+
+
+Client Acknowledge is option where we can tell broker when to delete a message.
+So in this case we have manually provide acknowledgement by using below code
+message.acknowledge()
+
+DUPS_OK_ACKNOWLEDGE 
+In this we will provide multiple acknowledgements at a time so that performance will be improved, but in case if the broker is down or having any issues when it receives this acknowledgement then all those messages will not be deleted and will PROCESSED AGAIN.
+
+SESSION_TRANSACTED
+This is same as AUTO ACKNOWLEDGE but it make sense to use this when we use transaction on the receiver end.
+This type is only for readability in transaction mode but there will be no effect.
+
+
+Problems During Receiving Message:
+When a Message is received and an exception is thrown from the receiver then the broker will try to reattempt message processing as it might be because of temporary network issues.
+If it exceeds maximum redelivery attempts then this message will be sent to Dead Letter Queue.
+
+
+
+Default Redelivery Policies Attributes:
+
+Property	Value	Description
+backOffMultiplier	5	The back-off multiplier.
+
+collisionAvoidanceFactor	0.15	The percentage of range of collision avoidance if enabled.
+
+initialRedeliveryDelay	1000L	The initial redelivery delay in milliseconds.
+
+maximumRedeliveries	6	Sets the maximum number of times a message will be redelivered before it is considered a poisoned pill and returned to the broker so it can go to a Dead Letter Queue.
+Set to -1 for unlimited redeliveries.
+
+maximumRedeliveryDelay	-1	Sets the maximum delivery delay that will be applied if the useExponentialBackOff option is set. (use value -1 to define that no maximum be applied) (v5.5).
+
+redeliveryDelay	1000L	The delivery delay if initialRedeliveryDelay=0 (v5.4).
+
+useCollisionAvoidance	false	Should the redelivery policy use collision avoidance.
+
+useExponentialBackOff	false	Should exponential back-off be used, i.e., to exponentially increase the timeout.
